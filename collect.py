@@ -5,16 +5,12 @@ import re
 import requests
 import base64
 import time
-from urllib.parse import urlparse
 
-# ================= 配置区域 =================
-OUTPUT_FILE = "nodes.txt"  # 输出的文件名
-# ============================================
+OUTPUT_FILE = "nodes.txt"
 
 def decode_base64(data):
-    """尝试解码Base64，失败就返回原字符串"""
     try:
-        # 补足填充字符
+        data = data.strip()
         padding = 4 - len(data) % 4
         if padding != 4:
             data += '=' * padding
@@ -22,115 +18,159 @@ def decode_base64(data):
     except:
         return data
 
-def extract_links_from_text(text):
-    """从文本中提取所有代理链接"""
+def extract_links(text):
     patterns = [
-        r'vmess://[a-zA-Z0-9+/=]+',
-        r'vless://[a-zA-Z0-9\-_.~%]+',
-        r'ss://[a-zA-Z0-9\-_.~%]+',
-        r'trojan://[a-zA-Z0-9\-_.~%]+',
-        r'ssr://[a-zA-Z0-9\-_]+',  # SSR是Base64编码
+        r'(vmess://[a-zA-Z0-9+/=]+)',
+        r'(vless://[^\s<>\"\']+)',
+        r'(ss://[^\s<>\"\']+)',
+        r'(trojan://[^\s<>\"\']+)',
+        r'(ssr://[a-zA-Z0-9\-_/+=]+)',
+        r'(hysteria2?://[^\s<>\"\']+)',
+        r'(tuic://[^\s<>\"\']+)',
     ]
-    
     links = []
-    for pattern in patterns:
-        found = re.findall(pattern, text)
+    for p in patterns:
+        found = re.findall(p, text)
         links.extend(found)
     return links
 
-def fetch_from_url(url, headers=None):
-    """从URL获取内容"""
-    if headers is None:
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
-        }
+def fetch(url, is_base64=False):
+    headers = {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+    }
     try:
-        resp = requests.get(url, headers=headers, timeout=15)
-        if resp.status_code == 200:
-            return resp.text
+        r = requests.get(url, headers=headers, timeout=30)
+        if r.status_code == 200:
+            text = r.text.strip()
+            if is_base64:
+                text = decode_base64(text)
+            return text
+        else:
+            print(f"  ⚠️ HTTP {r.status_code}")
     except Exception as e:
-        print(f"  [错误] 获取 {url} 失败: {e}")
-    return ""
-
-def fetch_from_url_base64(url):
-    """从URL获取Base64编码的内容（常见的订阅格式）"""
-    text = fetch_from_url(url)
-    if text:
-        return decode_base64(text)
+        print(f"  ❌ 错误: {e}")
     return ""
 
 def main():
     print("=" * 50)
-    print("节点采集脚本开始运行")
+    print("🚀 节点采集开始")
     print("=" * 50)
-    
-    all_links = set()  # 用set自动去重
-    
-    # ============ 数据源列表（你可以自行添加/修改） ============
+
+    all_links = set()
+
+    # =====================================================
+    #  真实数据源（全部来自 GitHub 公开仓库）
+    #  如果某个源失效了（返回0），删掉换新的即可
+    # =====================================================
     sources = [
-        # 方式1：直接抓取网页，从中提取节点链接
         {
-            "type": "html",
-            "url": "https://example-proxy-site-1.com/free",  # 这里替换成你的目标网站
-            "note": "示例网站1"
+            "name": "mfuu/v2ray",
+            "url": "https://raw.githubusercontent.com/mfuu/v2ray/master/v2ray",
+            "base64": True
         },
-        # 方式2：抓取Base64编码的订阅链接
         {
-            "type": "base64",
-            "url": "https://example-subscribe.com/sub",  # 这里替换成你的订阅地址
-            "note": "示例订阅1"
+            "name": "peasoft/NoMoreWalls",
+            "url": "https://raw.githubusercontent.com/peasoft/NoMoreWalls/master/list_raw.txt",
+            "base64": True
         },
-        # 方式3：抓取GitHub上的订阅文件
         {
-            "type": "text",
-            "url": "https://raw.githubusercontent.com/某用户/某仓库/main/sub.txt",
-            "note": "GitHub源1"
+            "name": "mahdibland/V2RayAggregator-1",
+            "url": "https://raw.githubusercontent.com/mahdibland/V2RayAggregator/master/sub/sub_merge_base64.txt",
+            "base64": True
+        },
+        {
+            "name": "Pawdroid/Free-servers",
+            "url": "https://raw.githubusercontent.com/Pawdroid/Free-servers/main/sub",
+            "base64": True
+        },
+        {
+            "name": "aiboboxx/v2rayfree",
+            "url": "https://raw.githubusercontent.com/aiboboxx/v2rayfree/main/v2",
+            "base64": True
+        },
+        {
+            "name": "barry-far/V2ray-Configs-Sub1",
+            "url": "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/Sub1.txt",
+            "base64": False
+        },
+        {
+            "name": "barry-far/V2ray-Configs-Sub2",
+            "url": "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/Sub2.txt",
+            "base64": False
+        },
+        {
+            "name": "barry-far/V2ray-Configs-Sub3",
+            "url": "https://raw.githubusercontent.com/barry-far/V2ray-Configs/main/Sub3.txt",
+            "base64": False
+        },
+        {
+            "name": "ermaozi/get_subscribe",
+            "url": "https://raw.githubusercontent.com/ermaozi/get_subscribe/main/subscribe/v2ray.txt",
+            "base64": True
+        },
+        {
+            "name": "freefq/free",
+            "url": "https://raw.githubusercontent.com/freefq/free/master/v2",
+            "base64": True
+        },
+        {
+            "name": "mianfeifq/share",
+            "url": "https://raw.githubusercontent.com/mianfeifq/share/main/data2023315.txt",
+            "base64": False
+        },
+        {
+            "name": "Leon406/SubCrawler",
+            "url": "https://raw.githubusercontent.com/Leon406/SubCrawler/master/sub/share/vless",
+            "base64": True
+        },
+        {
+            "name": "Leon406/SubCrawler-ss",
+            "url": "https://raw.githubusercontent.com/Leon406/SubCrawler/master/sub/share/ss",
+            "base64": True
+        },
+        {
+            "name": "a2470982985/getNode",
+            "url": "https://raw.githubusercontent.com/a2470982985/getNode/main/v2ray.txt",
+            "base64": True
         },
     ]
-    # =======================================================
-    
-    for source in sources:
-        print(f"\n📡 正在抓取: {source['note']}")
-        print(f"    URL: {source['url']}")
-        
-        if source['type'] == 'html':
-            content = fetch_from_url(source['url'])
-            links = extract_links_from_text(content)
-            print(f"    ✅ 提取到 {len(links)} 个链接")
+
+    for src in sources:
+        print(f"\n📡 [{src['name']}]")
+        print(f"   {src['url']}")
+        content = fetch(src["url"], is_base64=src["base64"])
+        if content:
+            links = extract_links(content)
+            count = len(links)
+            if count > 0:
+                print(f"   ✅ 提取到 {count} 个节点")
+            else:
+                print(f"   ⚠️ 页面有内容但未提取到节点（格式可能变了）")
             all_links.update(links)
-            
-        elif source['type'] == 'base64':
-            content = fetch_from_url_base64(source['url'])
-            links = extract_links_from_text(content)
-            print(f"    ✅ 解码后提取到 {len(links)} 个链接")
-            all_links.update(links)
-            
-        elif source['type'] == 'text':
-            content = fetch_from_url(source['url'])
-            links = extract_links_from_text(content)
-            print(f"    ✅ 提取到 {len(links)} 个链接")
-            all_links.update(links)
-        
-        # 礼貌性延迟，避免被反爬
+        else:
+            print(f"   ❌ 获取失败或内容为空")
         time.sleep(1)
-    
-    # 写入文件
-    final_links = list(all_links)
-    print(f"\n📊 去重后共有 {len(final_links)} 个节点")
-    
+
+    # 保存
+    final = sorted(all_links)
+    print(f"\n{'=' * 50}")
+    print(f"📊 去重后共计: {len(final)} 个节点")
+
     with open(OUTPUT_FILE, 'w', encoding='utf-8') as f:
-        for link in final_links:
+        for link in final:
             f.write(link + '\n')
-    
+
     print(f"✅ 已写入 {OUTPUT_FILE}")
-    
-    # 打印前5个作为预览
-    print("\n📝 前5个节点预览:")
-    for i, link in enumerate(final_links[:5]):
-        print(f"  {i+1}. {link[:80]}...")
-    
-    print("\n" + "=" * 50)
-    print("采集完成")
+
+    if final:
+        print(f"\n📝 前 5 个节点预览:")
+        for i, l in enumerate(final[:5]):
+            print(f"   {i+1}. {l[:80]}...")
+    else:
+        print("\n⚠️ 没有抓到任何节点！所有数据源可能都失效了")
+        print("   请去 GitHub 搜索 'free v2ray nodes' 找新的源")
+
+    print(f"\n🎉 采集完成")
 
 if __name__ == "__main__":
     main()
