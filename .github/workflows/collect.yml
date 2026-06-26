@@ -1,46 +1,3 @@
-你连续遇到这个 `403` 错误，说明 **GitHub 默认的机器人（github-actions[bot]）权限在你的账号/仓库里被彻底锁死了**。即便你在 YAML 里加了 `permissions: contents: write`，GitHub 的安全策略依然拒绝了它。
-
-不要气馁，这是 GitHub Actions 最经典的“权限墙”。
-
-为了**100% 彻底解决**这个问题，我们直接用 **PAT（个人访问令牌）** 方案。这个方案相当于用你自己的账号密码去推送，GitHub 绝对无法拦截。
-
-请按以下**全新、无痛**的三个步骤操作：
-
----
-
-### 第一步：生成你的个人 Token (PAT)
-
-1. 点击这个直达链接去创建 Token：👉 [GitHub Token 创建页面](https://github.com/settings/tokens/new)
-2. 页面中填写/勾选：
-   * **Note**: 填 `hiddify-push`
-   * **Expiration** (有效期): 选 `No expiration` (永久有效，免去以后失效的麻烦)
-   * **Select scopes** (勾选权限): **必须勾选最上面的 `repo`**（这会勾选它下面的所有子项，代表允许控制仓库）。
-3. 滚动到最下面，点击绿色的 **Generate token** 按钮。
-4. **【非常重要】** 页面会显示一串以 `ghp_` 开头的长代码。**立刻复制它并保存到记事本**（刷新网页后它就会永远消失！）。
-
----
-
-### 第二步：把 Token 存入你的仓库
-
-1. 浏览器打开你这个仓库的秘密设置页面（已为你定制好链接）：  
-   👉 `https://github.com/javaddduke/proxy-nodes/settings/secrets/actions`
-2. 点击右上角的 **New repository secret**（新建仓库密钥）。
-3. 填写：
-   * **Name**: 必须填 `MY_TOKEN`（全大写）
-   * **Value**: 粘贴你刚才复制的 `ghp_...` 那串长 Token。
-4. 点击 **Add secret** 保存。
-
----
-
-### 第三步：修改你的 `.github/workflows/collect.yml`
-
-把你的 workflow 文件内容**全部替换**为以下内容。
-
-这个配置里，我们做了两处关键修改：
-1. `checkout` 时使用了你刚才配置的 `MY_TOKEN`。
-2. 提交代码时使用你的真实用户名 `javaddduke`，不再假装是机器人。
-
-```yaml
 name: 自动采集节点
 
 on:
@@ -86,17 +43,3 @@ jobs:
           else
             echo "节点内容无变化，跳过推送。"
           fi
-```
-
----
-
-### 第四步：测试运行
-
-1. 回到你的仓库，点击 **Actions**。
-2. 点击左侧的 **自动采集节点**。
-3. 点击右侧 **Run workflow** -> **Run workflow**。
-
-这一次，你会看到流程一路绿灯，顺利通过，并且你的仓库根目录下会多出一个 `nodes.txt` 文件！
-
-完成之后，你的 Hiddify 订阅地址就是：
-`https://raw.githubusercontent.com/javaddduke/proxy-nodes/main/nodes.txt`
