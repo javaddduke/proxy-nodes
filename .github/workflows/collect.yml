@@ -35,7 +35,7 @@ jobs:
       - name: 创建/更新 PR
         uses: peter-evans/create-pull-request@v6
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.PAT_TOKEN }}
           branch: actions/update-nodes
           title: "🔄 自动更新节点"
           commit-message: "🔄 自动更新 nodes.txt"
